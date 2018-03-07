@@ -1,0 +1,182 @@
+---
+title: "Classifying Data-Driven Messages and Estimating the Effect of Data on Message Sharing"
+author: "Justin Murphy"
+date: "11/8/2017"
+output: pdf_document
+---
+
+**Abstract**. Does the use of formal data effect the likelihood that a message will be shared? To answer this question, we pursue a two-stage approach. First, we build a classifier able to distinguish data-driven messages from non-data-driven messages. We do this using two different approaches. First, we train a classifier using hand-coded instances of data-driven messages. Then, alternatively, we train a classifier using messages drawn from the #dataviz hashtag. Either approach allows us to estimate the degree to which any arbitrary message is data-driven. We then apply this classifier to a sample of tweets mentioning "Brexit," to study the relationship between data-driven messages and message sharing, controlling for follower counts. This short document is primarily a proof of concept. None of the models are fully optimal (e.g. the regression models are not the correct models, they are purely heuristic) and all data samples are relatively small. Nonetheless in this first exploration we find no substantial relationship between the estimated data-richness of a message and its likelihood of being shared.
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = F, warning = FALSE, error=FALSE, message = FALSE)
+options(scipen=999)
+
+require(rtweet)
+require(dplyr)
+require(ggplot2)
+require(Zelig)
+
+# Pre-requisites
+
+############################
+# 1. Register an app on the Twitter Developer website
+############################
+
+# Run the following, filling in the information from your app.
+
+# twitter_token <- create_token(
+#   app = appname,
+#   consumer_key = key,
+#   consumer_secret = secret)
+
+# Or set path to a file that runs the above
+# load("/Volumes/justin_hd/gh_projects/datastories/private/auth.R")
+
+#########################
+# 2. Set working directory
+#########################
+
+# You'll need to change this line
+# Set working directory to wherever /datasharing/ is
+setwd("/Volumes/justin_hd/gh_projects/datastories/datasharing/")
+
+########################
+# 3. Run scripts
+########################
+
+```
+
+## Study 1: Training a classifier on data-driven messages by data journalists
+
+I scraped between 200 and 300 tweets each from 20 diverse data journalists with the largest followings on Twitter. This produced about 2600 status updates in English. I then manually coded this sample for "data-driven" status updates.
+
+```{r cars, results='hide', echo=F}
+dj <- read.csv("../../data/djs-coded-with-users.csv")
+
+num <- dj %>%
+  filter(data == 1) %>%
+           nrow()
+```
+
+Our sample contains `r num` status updates that were found by qualitative analysis to be data-driven (`r round(num/nrow(dj)*100,2)`%). Note that this is not intended to represent the prevalence of data-driven messages among data journalists: For this stage of the research,  purposely sought to increase the number of data-driven messages through different means, e.g., filtering messages by data-oriented terms. 
+
+### Examples of hand-coded data-driven status updates (before cleaning)
+ 
+<!-- ```{r, results='hide'} -->
+<!-- require(knitr) -->
+
+<!-- examples<-dj %>%  -->
+<!--   filter(data == 1) %>%  -->
+<!--   select(text) %>%  -->
+<!--   head(10) -->
+
+<!-- ``` -->
+"That surge in full: -0.04% vs $; +0.25% vs __ https://t.co/AckIl5M9Ck"
+
+"This is astonishing: FT points out that HUGOBOSS has submitted improbable gender pay gap figures (of 0%!) and Boss revises__"
+
+"This is an amazing chart, by my great colleague LaurenLeatherby: Amazon's growth is blotting out the rest of US retail...__"
+
+"Our long-running UK economic dashboard makes its print debut https://t.co/3WqIvdBNlF https://t.co/dZV4PKqLVB"
+
+"Nice to see BillyEhrenberg and alekswis__ gender pay gap data-crunching on the front today:__ https://t.co/1mgG4K4bIl"
+
+## Are data-driven messages more likely to be shared (within the sample)?
+The answer is no, not really. Below find simple bivariate visualization (Figure 1) and a regression looking only at original messages (non-RTs, and non-replies) and controlling for followings (Figure 2). 
+
+```{r, fig.cap='Data-driven tweets and Retweets', fig.pos='p', fig.align='center'}
+
+dj$reply<-ifelse(grepl("^@", dj$text), 1, 0)
+dj <- subset(dj, is_retweet==FALSE & reply==0)
+qplot(as.factor(dj$data), log(dj$retweet_count+1),  ylab = "Number of Retweets (Log)", xlab="Data-driven?", geom="boxplot")
+```
+
+```{r, fig.cap="Effect of data-drivenness on number of retweets, within data journalism sample", fig.pos='p', fig.align='center'}
+
+# Negative binomial model for count data
+mod <- zelig(retweet_count ~ followers_count + data, data = dj, model = 'negbin', cite=F)
+summary(mod)
+
+
+# dj %>% 
+#     zelig(retweet_count ~ followers_count + data, model = 'ls', cite=F, data = .) %>%
+#     setx(data = 0) %>%
+#     setx1(data = 1) %>%
+#     sim() %>% 
+#     plot()
+```
+
+## A classifier for data-driven messages
+
+Can the hand-coded data-driven messages be used to classify a larger sample into data-driven and non-data-driven tweets?
+
+I used the doc2vec algorithm to learn the difference between data-driven and non-data-driven messages. I split the data 70/30 into training/test data. I used logistic regression with cross-validation to build a classifier capable of predicting whether a message is data-driven or not. The model accuracy rate was about 75%.
+
+I then scraped a random sample of tweets mentioning Brexit, and used the classifier to predict the probability a given message is data-driven. I then used these predicted values to estimate whether data-driven messages are shared more than non-data-driven messages. I did this with simple regression, looking only at non-RTs and controlling for follower counts.
+
+Again there is not much evidence that data-driven messages predict number of retweets. I should note this linear regression model is certainly not the correct model, it is only a first exploratory look.
+
+```{r, fig.cap="Estimated effect of data on number of retweets, controlling for followers (trained on hand-coding)", fig.pos='p', fig.align='center'}
+
+df <- read.csv("../../data/brexit-classified.csv")
+
+df <- subset(df, is_retweet==FALSE & reply==0)
+
+mod<-zelig(retweet_count ~ followers_count + datacont, data=df, model='ls', cite=F)
+
+summary(mod)
+
+```
+
+
+## Approach 2: train a classifier using #dataviz messages
+
+An alternative appraoch to hand-coding data-driven messages is to use a sample of tweets already known to represent data-driven messages. One candidate for this is the set of status updates containing the hashtag #dataviz. Most of these message are, in some sense, data-driven. The advantage is convenience, and a large sample. The drawback is that #dataviz also contains a lot of non-data-driven content, especially marketing and tutorials. Still we might plausibly think the language from #dataviz is a good proxy for data-driven messages in other domains.
+
+I followed the same approach as above. The classifier had a higher accuracy, of about 87%.
+
+The results are similar: no appreciable relationship between RTs and data-driven messages.
+```{r, fig.cap='Estimated effect of data on number of retweets, controlling for followers (trained on Dataviz)', fig.pos='p', fig.align='center'}
+
+# df <- read.csv("dataviz/dataviz_brexit_users.csv")
+
+# mod<-zelig(retweet_count ~ followers_count + datacont, data=subset(df, is_retweet==FALSE), model='ls', cite=F)
+# summary(mod)
+
+# z1 <- setx(mod, datacont = 0:1)
+# z1 <- sim(z1)
+
+# model summary
+#summary(z1)
+# plot(z1, ci = c(90, 95, 99))
+```
+
+## Approach 3: Explicit references to data, Trump-Russia and Climate Change
+
+```{r, fig.cap='Estimated effect of data mentions on number of retweets (Trump/Russia)', fig.pos='p', fig.align='center'}
+
+trump.df<-read.csv("../../data/trump-tweets-and-users.csv")
+
+sub<-subset(trump.df, retweet_count<3000 & is_retweet==F & reply==0)
+
+mod<-zelig(retweet_count ~ followers_count + as.factor(data), data=sub, model='ls', cite=F)
+summary(mod)
+
+qplot(as.factor(sub$data), log(sub$retweet_count+1),  ylab = "Number of Retweets (Log)", xlab="Data-driven?", geom="violin")
+
+```
+
+```{r, fig.cap='Estimated effect of data mentions on number of retweets (climate change)', fig.pos='p', fig.align='center'}
+
+climate.df<-read.csv("../../data/climate-tweets-and-users.csv")
+
+sub<-subset(climate.df, retweet_count<1000 & is_retweet==F & reply==0)
+
+mod<-zelig(retweet_count ~ followers_count + as.factor(data), data=sub, model='ls', cite=F)
+summary(mod)
+
+qplot(as.factor(sub$data), log(sub$retweet_count+1),  ylab = "Number of Retweets (Log)", xlab="Data-driven?", geom="violin")
+
+```
+
