@@ -29,7 +29,17 @@ trumpdata<-Map("search_tweets",
                     'Trump Russia AND "study shows" OR "study reveals" OR "study indicates" OR "study suggests" OR "study proves"',
                     'Trump Russia AND "data shows" OR "data reveals" OR "data indicates" OR "data suggests" OR "data proves"',
                     'Trump Russia AND "data show" OR "data reveal" OR "data indicate" OR "data suggest" OR "data prove"',
-                    'Trump Russia AND "figure shows" OR "figure reveals" OR "figure indicates" OR "figure suggests" OR "figure proves"'),
+                    'Trump Russia AND "figure shows" OR "figure reveals" OR "figure indicates" OR "figure suggests" OR "figure proves"',
+                    'Trump Putin AND "graph shows" OR "graph reveals" OR "graph indicates" OR "graph suggests" OR "graph proves"',
+                    'Trump Putin AND "chart shows" OR "chart reveals" OR "chart indicates" OR "chart suggests" OR "chart proves"',
+                    'Trump Putin AND "map shows" OR "map reveals" OR "map indicates" OR "map suggests" OR "map proves"',
+                    'Trump Putin AND "poll shows" OR "poll reveals" OR "poll indicates" OR "poll suggests" OR "poll proves"',
+                    'Trump Putin AND "polling shows" OR "polling reveals" OR "polling indicates" OR "polling suggests" OR "polling proves"',
+                    'Trump Putin AND "studies show" OR "studies reveal" OR "studies indicate" OR "studies suggest" OR "studies prove"',
+                    'Trump Putin AND "study shows" OR "study reveals" OR "study indicates" OR "study suggests" OR "study proves"',
+                    'Trump Putin AND "data shows" OR "data reveals" OR "data indicates" OR "data suggests" OR "data proves"',
+                    'Trump Putin AND "data show" OR "data reveal" OR "data indicate" OR "data suggest" OR "data prove"',
+                    'Trump Putin AND "figure shows" OR "figure reveals" OR "figure indicates" OR "figure suggests" OR "figure proves"'),
                   include_rts=F, n = 100000, retryonratelimit = T)
 
 # Unlist into dataframe preserving rtweet's attributes
@@ -65,7 +75,10 @@ trump.df$reply <- ifelse(is.na(trump.df$reply_to_screen_name), 0, 1)
 
 trump.df[14:64] <- sapply(trump.df[14:64], function(x) unlist(x))
 
-write.csv(trump.df, "data/trump-tweets-and-users.csv")
+# trump.df.orig<-read.csv("data/trump-tweets-and-users.csv") # Bring in last set of scraped tweets with users
+# trump.df.orig <- select(trump.df.orig, -X) # If a row name gets added in the process
+# trump.df <- rbind(trump.df.orig, trump.df) # Bind last dataset with new one
+write.csv(trump.df, "data/trump-tweets-and-users-new.csv") #merge manually with last scraped dataset
 
 
 ###########################################################
@@ -120,7 +133,13 @@ climate.df$links <- ifelse(is.na(climate.df$urls_url), 0, 1)
 climate.df$reply <- ifelse(is.na(climate.df$reply_to_screen_name), 0, 1)
 
 climate.df[14:61] <- sapply(climate.df[14:61], function(x) unlist(x))
-write.csv(climate.df, "data/climate-tweets-and-users.csv")
+
+
+# climate.df.orig<-read.csv("data/climate-tweets-and-users.csv") # Bring in last set of scraped tweets with users
+# climate.df.orig <- select(climate.df.orig, -X) # If a row name gets added in the process
+# climate.df <- rbind(climate.df.orig, climate.df) # Bind last dataset with new one
+write.csv(climate.df, "data/climate-tweets-and-users.csv") #merge manually with last scraped dataset
+
 
 mod<-zelig(log(retweet_count+1) ~ followers_count + as.factor(data), data=subset(climate.df, is_retweet==FALSE & reply==0), model='ls', cite=F)
 summary(mod)
